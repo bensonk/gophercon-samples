@@ -84,12 +84,12 @@ func main() {
 	}
 
 	// Open the file specified above, and upload its contents to our bucket with the specified object name
-	object := &storage.Object{Name: objectName}
 	file, err := os.Open(fileName)
 	if err != nil {
 		log.Fatalf("Error opening %q: %v", fileName, err)
 	}
-	obj, err := service.Objects.Insert(bucketName, object).Media(file).Do()
+	defer file.Close()
+	obj, err := service.Objects.Insert(bucketName, &storage.Object{Name: objectName}).Media(file).Do()
 	if err != nil {
 		log.Fatalf("Objects.Insert failed: %v", err)
 	}
