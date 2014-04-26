@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -23,7 +25,7 @@ const (
 )
 
 // authClient does the heavy lifting to get an OAuth2-enabled http.Client.
-func authClient(cacheFile *string, code *string) *http.Client {
+func authClient(cacheFile *string, code *string) (*http.Client, error) {
 	config := &oauth.Config{
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
@@ -43,19 +45,20 @@ func authClient(cacheFile *string, code *string) *http.Client {
 	if err != nil {
 		if *code == "" {
 			url := config.AuthCodeURL("")
-			log.Fatalf("Visit URL to get a code then run again with -code=YOUR_CODE\n%s", url)
+			message := fmt.Sprintf("Visit URL to get a code then run again with -code=YOUR_CODE\n%s", url)
+			return nil, errors.New(message)
 		}
 
 		// Exchange auth code for access token
 		token, err = transport.Exchange(*code)
 		if err != nil {
-			log.Fatal("Exchange: ", err)
+			return nil, err
 		}
 		log.Printf("Token is cached in %v\n", config.TokenCache)
 	}
 	transport.Token = token
 
-	return transport.Client()
+	return transport.Client(), nil
 }
 
 func main() {
@@ -65,7 +68,10 @@ func main() {
 	)
 	flag.Parse()
 
-	httpClient := authClient(cacheFile, code)
+	httpClient, err := authClient(cacheFile, code)
+	if err != nil {
+		log.Fatal(err)
+	}
 	service, err := storage.New(httpClient)
 
 	// Check to see if the specified bucket exists, and create it if necessary
@@ -106,7 +112,7 @@ func main() {
 	content, err := ioutil.ReadAll(media.Body)
 	media.Body.Close()
 	if err != nil {
-    log.Fatalf("Couldn't read response body when fetching object: %s", err)
+		log.Fatalf("Couldn't read response body when fetching object: %s", err)
 	}
 	// Finally, print the object's contents
 	log.Printf("Object contents:\n%s", content)
