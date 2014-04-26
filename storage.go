@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -25,14 +24,14 @@ const (
 )
 
 // authClient does the heavy lifting to get an OAuth2-enabled http.Client.
-func authClient(cacheFile *string, code *string) (*http.Client, error) {
+func authClient(cacheFile, code string) (*http.Client, error) {
 	config := &oauth.Config{
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 		Scope:        storage.DevstorageFull_controlScope,
 		AuthURL:      "https://accounts.google.com/o/oauth2/auth",
 		TokenURL:     "https://accounts.google.com/o/oauth2/token",
-		TokenCache:   oauth.CacheFile(*cacheFile),
+		TokenCache:   oauth.CacheFile(cacheFile),
 		RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
 	}
 
@@ -43,14 +42,13 @@ func authClient(cacheFile *string, code *string) (*http.Client, error) {
 
 	token, err := config.TokenCache.Token()
 	if err != nil {
-		if *code == "" {
+		if code == "" {
 			url := config.AuthCodeURL("")
-			message := fmt.Sprintf("Visit URL to get a code then run again with -code=YOUR_CODE\n%s", url)
-			return nil, errors.New(message)
+			return nil, fmt.Errorf("Visit URL to get a code then run again with -code=YOUR_CODE\n%s", url)
 		}
 
 		// Exchange auth code for access token
-		token, err = transport.Exchange(*code)
+		token, err = transport.Exchange(code)
 		if err != nil {
 			return nil, err
 		}
@@ -62,13 +60,13 @@ func authClient(cacheFile *string, code *string) (*http.Client, error) {
 }
 
 func main() {
-  // Sets up two command line flags
-  cacheFile := flag.String("cache", "cache.json", "Token cache file")
+	// Sets up two command line flags
+	cacheFile := flag.String("cache", "cache.json", "Token cache file")
 	code := flag.String("code", "", "Authorization Code")
 	flag.Parse()
 
-  // Creates an oauth-enabled HTTP client
-	httpClient, err := authClient(cacheFile, code)
+	// Creates an oauth-enabled HTTP client
+	httpClient, err := authClient(*cacheFile, *code)
 	if err != nil {
 		log.Fatal(err)
 	}
