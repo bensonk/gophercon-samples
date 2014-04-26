@@ -1,13 +1,14 @@
 package main
 
 import (
-	"code.google.com/p/goauth2/oauth"
-	"code.google.com/p/google-api-go-client/storage/v1beta2"
 	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+
+	"code.google.com/p/goauth2/oauth"
+	"code.google.com/p/google-api-go-client/storage/v1beta2"
 )
 
 const (
@@ -21,13 +22,8 @@ const (
 	objectName = "english-dictionary"
 )
 
-var (
-	cacheFile = flag.String("cache", "cache.json", "Token cache file")
-	code      = flag.String("code", "", "Authorization Code")
-)
-
-// getAuthenticatedClient does the heavy lifting to get an OAuth2-enabled http.Client.
-func getAuthenticatedClient() *http.Client {
+// authClient does the heavy lifting to get an OAuth2-enabled http.Client.
+func authClient(cacheFile *string, code *string) *http.Client {
 	config := &oauth.Config{
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
@@ -63,20 +59,24 @@ func getAuthenticatedClient() *http.Client {
 }
 
 func main() {
+	var (
+		cacheFile = flag.String("cache", "cache.json", "Token cache file")
+		code      = flag.String("code", "", "Authorization Code")
+	)
 	flag.Parse()
 
-	httpClient := getAuthenticatedClient()
+	httpClient := authClient(cacheFile, code)
 	service, err := storage.New(httpClient)
 
 	// Check to see if the specified bucket exists, and create it if necessary
 	if _, err := service.Buckets.Get(bucketName).Do(); err == nil {
 		log.Printf("Bucket %s already exists - skipping buckets.insert call.\n", bucketName)
 	} else {
-		if res, err := service.Buckets.Insert(projectID, &storage.Bucket{Name: bucketName}).Do(); err != nil {
+		res, err := service.Buckets.Insert(projectID, &storage.Bucket{Name: bucketName}).Do()
+		if err != nil {
 			log.Fatalf("Failed creating bucket %s: %v", bucketName, err)
-		} else {
-			log.Printf("Created bucket %v at location %v\n\n", res.Name, res.SelfLink)
 		}
+		log.Printf("Created bucket %v at location %v\n\n", res.Name, res.SelfLink)
 	}
 
 	// Open the file specified above, and upload its contents to our bucket with the specified object name
@@ -85,29 +85,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error opening %q: %v", fileName, err)
 	}
-	if res, err := service.Objects.Insert(bucketName, object).Media(file).Do(); err != nil {
+	obj, err := service.Objects.Insert(bucketName, object).Media(file).Do()
+	if err != nil {
 		log.Fatalf("Objects.Insert failed: %v", err)
-	} else {
-		log.Printf("Created object %v at location %v\n", res.Name, res.SelfLink)
 	}
+	log.Printf("Created object %v at location %v\n", obj.Name, obj.SelfLink)
 
 	// Fetch the media link for the object
-	res, err := service.Objects.Get(bucketName, objectName).Do()
+	obj, err = service.Objects.Get(bucketName, objectName).Do()
 	if err != nil {
 		log.Fatalf("Failed to get %s/%s: %s.", bucketName, objectName, err)
 	}
 	// Using the media link, grab the object itself
-	log.Printf("Downloading media from %s\n", res.MediaLink)
-	objectResponse, err := httpClient.Get(res.MediaLink)
+	log.Printf("Downloading media from %s\n", obj.MediaLink)
+	media, err := httpClient.Get(obj.MediaLink)
 	if err != nil {
 		log.Fatalf("Unable to fetch object %s.", objectName)
 	}
 	// Pull the data out of the response body
-	objectContents, err := ioutil.ReadAll(objectResponse.Body)
-	objectResponse.Body.Close()
+	content, err := ioutil.ReadAll(media.Body)
+	media.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+    log.Fatalf("Couldn't read response body when fetching object: %s", err)
 	}
 	// Finally, print the object's contents
-	log.Printf("Object contents:\n%s", objectContents)
+	log.Printf("Object contents:\n%s", content)
 }
