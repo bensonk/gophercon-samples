@@ -62,12 +62,12 @@ func authClient(cacheFile *string, code *string) (*http.Client, error) {
 }
 
 func main() {
-	var (
-		cacheFile = flag.String("cache", "cache.json", "Token cache file")
-		code      = flag.String("code", "", "Authorization Code")
-	)
+  // Sets up two command line flags
+  cacheFile := flag.String("cache", "cache.json", "Token cache file")
+	code := flag.String("code", "", "Authorization Code")
 	flag.Parse()
 
+  // Creates an oauth-enabled HTTP client
 	httpClient, err := authClient(cacheFile, code)
 	if err != nil {
 		log.Fatal(err)
@@ -108,9 +108,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to fetch object %s.", objectName)
 	}
+	defer media.Body.Close()
 	// Pull the data out of the response body
 	content, err := ioutil.ReadAll(media.Body)
-	media.Body.Close()
 	if err != nil {
 		log.Fatalf("Couldn't read response body when fetching object: %s", err)
 	}
